@@ -48,6 +48,42 @@ def call(Map cfg = [:]) {
         error "[ZAP] ❌ Quá trình scan bị lỗi hoặc thất bại. Exit code: ${exitCode}"
     }
 
-    echo "[ZAP] ✅ Quá trình scan hoàn tất! Báo cáo đã được lưu trữ và hiển thị trên Osmedeus UI."
+    def cleanTarget = baseUrl.replaceAll('^https?://', '')
+    def osmedeusUiUrl = "http://192.168.119.152:8002"
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "[ZAP] ✅ QUÁ TRÌNH SCAN HOÀN TẤT!"
+    echo "[ZAP] 🔍 Vui lòng kiểm tra báo cáo ZAP HTML trên Dashboard của Osmedeus:"
+    echo "[ZAP] 🔗 Link: ${osmedeusUiUrl}/ (Tìm workspace của: ${cleanTarget})"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    // BƯỚC MỚI: Kéo file báo cáo từ Osmedeus về Jenkins Workspace để hiển thị UI
+    echo "[ZAP] Đang kéo báo cáo về Jenkins để hiển thị lên UI cho Dev..."
+    def osmedeusWorkspace = "~/.osmedeus/workspaces/${cleanTarget}"
+    def reportPath = "${osmedeusWorkspace}/zap/zap-report.html"
+    
+    // Copy file về thư mục hiện tại của Jenkins
+    sh "cp ${reportPath} zap-report.html || echo '[ZAP] ⚠️ Không tìm thấy file báo cáo tại ${reportPath}'"
+
+    // 1. Publish dưới dạng Tab HTML (Nếu có cài plugin HTML Publisher)
+    try {
+        publishHTML(target: [
+            allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: '.',
+            reportFiles: 'zap-report.html',
+            reportName: 'ZAP Security Report',
+            reportTitles: 'ZAP DAST Scan Result'
+        ])
+        echo "[ZAP] Đã publish HTML Report lên Jenkins UI!"
+    } catch (Throwable t) {
+        echo "[ZAP] ⚠️ Bạn chưa cài 'HTML Publisher Plugin', Jenkins sẽ bỏ qua bước tạo Tab HTML."
+    }
+
+    // 2. Lưu trữ file tĩnh (Artifact) để tải về (Built-in của Jenkins, luôn chạy được)
+    archiveArtifacts artifacts: 'zap-report.html', allowEmptyArchive: true
+    echo "[ZAP] Đã lưu file báo cáo dưới dạng Artifact (Có thể tải về từ Jenkins Build Page)."
+
     return true
 }
