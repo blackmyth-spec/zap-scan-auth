@@ -1,0 +1,164 @@
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║              ZAP DAST SCANNER — Dedicated Jenkins Job                   ║
+ * ║                                                                          ║
+ * ║  File này được DevSecOps đặt vào Jenkins Job (Pipeline from SCM).       ║
+ * ║  Dev team KHÔNG chỉnh sửa file này.                                     ║
+ * ║                                                                          ║
+ * ║  Dev team chỉ cần:                                                       ║
+ * ║    1. Vào job "ZAP-DAST-Scanner" trên Jenkins UI                         ║
+ * ║    2. Bấm "Build with Parameters"                                         ║
+ * ║    3. Điền form và bấm Build                                              ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ */
+@Library('zap-shared-lib') _
+
+pipeline {
+    // Chạy trên agent nào cũng được — chỉ cần có curl
+    agent { label 'any' }
+
+    options {
+        buildDiscarder(logRotator(daysToKeepStr: '7', numToKeepStr: '30'))
+        timestamps()
+        // Không timeout toàn pipeline — mỗi scan tự quản lý timeout
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORM THAM SỐ — Dev team điền vào đây trên Jenkins UI
+    // ══════════════════════════════════════════════════════════════════════════
+    parameters {
+
+        // ── Thông tin project ─────────────────────────────────────────────────
+        string(
+            name:         'PROJECT_NAME',
+            defaultValue: '',
+            description:  '⚠️ BẮT BUỘC — Tên project/service cần scan (VD: nextgen-ebanking, payment-service)'
+        )
+        string(
+            name:         'ENVIRONMENT',
+            defaultValue: 'DEV',
+            description:  'Môi trường scan: DEV | UAT | STAGING'
+        )
+
+        // ── Target URL ────────────────────────────────────────────────────────
+        string(
+            name:         'BASE_URL',
+            defaultValue: '',
+            description:  '⚠️ BẮT BUỘC — Base URL cần scan (VD: https://dev.myapp.com). Để trống để tự lấy từ Postman.'
+        )
+
+        // ── Authentication ────────────────────────────────────────────────────
+        booleanParam(
+            name:         'ENABLE_PRELOGIN',
+            defaultValue: true,
+            description:  'Bật pre-login? Tắt nếu API không cần Authentication.'
+        )
+        text(
+            name:         'LOGIN_CURL_COMMAND',
+            defaultValue: 'curl -sS -k -X POST \\\n  -H "Content-Type: application/json" \\\n  --data-binary \'{"username":"user","password":"pass"}\' \\\n  https://YOUR_APP/api/login \\\n  > zap-tmp/auth_response_raw.json',
+            description:  '⚠️ BẮT BUỘC nếu ENABLE_PRELOGIN=true — Lệnh curl login đầy đủ. Phải có "> zap-tmp/auth_response_raw.json" ở cuối.'
+        )
+
+        // ── Cấu hình scan ─────────────────────────────────────────────────────
+        string(
+            name:         'SCAN_EXCLUDE_APIS',
+            defaultValue: '',
+            description:  'Các API không cần scan, cách nhau bằng dấu phẩy (VD: /api/logout,/api/health,/api/ping)'
+        )
+        string(
+            name:         'API_PATH',
+            defaultValue: '/api/',
+            description:  'Prefix path API để ZAP inject token (VD: /api/ hoặc /v1/)'
+        )
+
+        // ── Advanced ──────────────────────────────────────────────────────────
+        string(
+            name:         'DOCKER_IMAGE',
+            defaultValue: 'ghcr.io/zaproxy/zaproxy:stable',
+            description:  '[Advanced] Docker image ZAP. Không cần thay đổi nếu không có lý do đặc biệt.'
+        )
+        string(
+            name:         'POLL_TIMEOUT_SEC',
+            defaultValue: '1800',
+            description:  '[Advanced] Timeout tối đa chờ scan xong, tính bằng giây (mặc định 30 phút).'
+        )
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PIPELINE — DevSecOps quản lý, dev team KHÔNG chỉnh sửa phần dưới
+    // ══════════════════════════════════════════════════════════════════════════
+    environment {
+        // URL ZAP Service — DevSecOps cấu hình sẵn ở đây
+        ZAP_SERVICE_URL = 'http://zap-server:8080'
+
+        // Tắt proxy để ZAP gọi thẳng đến target
+        HTTP_PROXY  = ''
+        HTTPS_PROXY = ''
+        http_proxy  = ''
+        https_proxy = ''
+        NO_PROXY    = '*'
+        no_proxy    = '*'
+    }
+
+    stages {
+
+        stage('Validate Input') {
+            steps {
+                script {
+                    // Kiểm tra tham số bắt buộc
+                    if (!params.PROJECT_NAME?.trim()) {
+                        error "❌ PROJECT_NAME không được để trống!"
+                    }
+                    if (!params.BASE_URL?.trim()) {
+                        error "❌ BASE_URL không được để trống!"
+                    }
+                    if (params.ENABLE_PRELOGIN && !params.LOGIN_CURL_COMMAND?.trim()) {
+                        error "❌ LOGIN_CURL_COMMAND bắt buộc khi ENABLE_PRELOGIN = true!"
+                    }
+                    if (params.ENABLE_PRELOGIN && !params.LOGIN_CURL_COMMAND.contains('zap-tmp/auth_response_raw.json')) {
+                        error "❌ LOGIN_CURL_COMMAND phải có '> zap-tmp/auth_response_raw.json' ở cuối!"
+                    }
+
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo " ZAP DAST Scanner"
+                    echo " Project   : ${params.PROJECT_NAME}"
+                    echo " Env       : ${params.ENVIRONMENT}"
+                    echo " Target    : ${params.BASE_URL}"
+                    echo " Pre-login : ${params.ENABLE_PRELOGIN}"
+                    echo " Exclude   : ${params.SCAN_EXCLUDE_APIS ?: '(none)'}"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                }
+            }
+        }
+
+        stage('Run ZAP DAST Scan') {
+            steps {
+                script {
+                    // Toàn bộ logic nằm trong Shared Library — zapScan tự đọc params.*
+                    zapScan()
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                // Publish HTML report nếu tồn tại
+                if (fileExists('zap-out')) {
+                    publishHTML([
+                        allowMissing:          true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll:               true,
+                        reportDir:             'zap-out',
+                        reportFiles:           '*.html',
+                        reportName:            "ZAP Report — ${params.PROJECT_NAME} [${params.ENVIRONMENT}]"
+                    ])
+                    archiveArtifacts artifacts: 'zap-out/**', allowEmptyArchive: true, fingerprint: true
+                }
+            }
+        }
+        success  { echo "✅ [${params.PROJECT_NAME}] Scan hoàn thành thành công." }
+        failure  { echo "❌ [${params.PROJECT_NAME}] Scan thất bại. Xem log bên trên." }
+    }
+}

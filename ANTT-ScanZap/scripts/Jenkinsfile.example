@@ -1,0 +1,98 @@
+/**
+ * Jenkinsfile.example — Dành cho Dev Team
+ * 
+ * Pipeline này sẽ hiển thị một giao diện (Build with Parameters) cho phép:
+ * 1. Nhập Target URL
+ * 2. Upload file Postman (thông qua base64File plugin hoặc text input)
+ * 3. Tự động chuyển file sang chuẩn ZAP và gọi thư viện zapScan để quét qua Osmedeus
+ */
+
+@Library('zap-shared-lib') _
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(daysToKeepStr: '7', numToKeepStr: '10'))
+    }
+
+    parameters {
+        // Tham số nhập URL
+        string(
+            name: 'TARGET_URL',
+            defaultValue: '',
+            description: '⚠️ Nhập Base URL của ứng dụng (VD: https://api.myapp.com)'
+        )
+
+        // Tham số upload file Postman (Sử dụng Base64 File Parameter Plugin)
+        // Nếu Jenkins của bạn không cài plugin này, bạn có thể đổi thành text() để dev paste nội dung JSON vào.
+        base64File(
+            name: 'POSTMAN_COLLECTION',
+            description: 'Upload file Postman Collection (.json)'
+        )
+        
+        // Tham số cấu hình nâng cao
+        text(
+            name: 'LOGIN_CURL',
+            defaultValue: '',
+            description: 'Lệnh CURL để login (Nếu ứng dụng cần xác thực)'
+        )
+    }
+
+    stages {
+        stage('Chuẩn bị dữ liệu (Preflight)') {
+            steps {
+                script {
+                    echo "=> Target URL: ${params.TARGET_URL}"
+                    
+                    // Tạo thư mục tạm để chứa file Postman
+                    sh 'mkdir -p zap-tmp'
+
+                    // Xử lý file Postman được upload
+                    if (params.POSTMAN_COLLECTION) {
+                        echo "=> Đã nhận file Postman từ Dev Team. Đang lưu..."
+                        // Decode base64 từ biến Jenkins parameter và ghi ra file json
+                        byte[] decodedBytes = params.POSTMAN_COLLECTION.decodeBase64()
+                        writeFile file: 'zap-tmp/postman_collection.json', text: new String(decodedBytes)
+                        
+                        echo "✅ File Postman đã được lưu thành công tại zap-tmp/postman_collection.json"
+                    } else {
+                        echo "⚠️ Không có file Postman nào được upload. ZAP sẽ chỉ scan dựa trên URL."
+                    }
+                }
+            }
+        }
+
+        stage('Kích hoạt ZAP DAST (Qua Osmedeus)') {
+            steps {
+                script {
+                    // Gọi hàm trong thư mục vars/zapScan.groovy của Shared Library
+                    // Thư viện này sẽ gọi Osmedeus CLI -> FastAPI -> ZAP
+                    zapScan(
+                        baseUrl: params.TARGET_URL,
+                        loginCurlCommand: params.LOGIN_CURL
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                // Nếu quy trình có sinh ra file báo cáo ở Workspace hiện tại thì lưu lại
+                if (fileExists('zap-out')) {
+                    archiveArtifacts artifacts: 'zap-out/**', allowEmptyArchive: true
+                }
+            }
+            cleanWs()
+        }
+        success {
+            echo "🎉 Quá trình quét hoàn tất thành công!"
+        }
+        failure {
+            echo "❌ Pipeline quét thất bại. Vui lòng kiểm tra log."
+        }
+    }
+}

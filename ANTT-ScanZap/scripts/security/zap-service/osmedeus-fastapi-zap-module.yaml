@@ -1,0 +1,69 @@
+name: "ZAP FastAPI DAST Integration"
+description: "Trigger ZAP DAST Scan via FastAPI service from Osmedeus"
+info:
+  - "Calls the centralized FastAPI scan service"
+  - "Polls for completion and downloads the final HTML report into Osmedeus Workspace"
+type: custom
+
+params:
+  - targetUrl: "{{target}}"
+  - apiUrl: "http://zap-fastapi-service:8000" # Hãy thay đổi thành URL thực tế của FastAPI service
+  - loginCurl: ""
+  - excludeApis: ""
+
+steps:
+  - required:
+      - "{{target}}"
+    commands:
+      - |
+        echo "==> Triggering ZAP Scan via FastAPI..."
+        # Gọi API POST /scan
+        RESPONSE=$(curl -s -X POST "{{apiUrl}}/scan" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"base_url\": \"{{targetUrl}}\",
+            \"login_curl_command\": \"{{loginCurl}}\",
+            \"scan_exclude_apis\": \"{{excludeApis}}\"
+          }")
+        
+        # Bóc tách job_id bằng grep (hoặc jq nếu hệ thống Osmedeus có cài jq)
+        JOB_ID=$(echo $RESPONSE | grep -o '"job_id":"[^"]*' | cut -d'"' -f4)
+        
+        if [ -z "$JOB_ID" ]; then
+          echo "[-] Failed to start scan. Response: $RESPONSE"
+          exit 1
+        fi
+        
+        echo "[+] Scan started successfully. Job ID: $JOB_ID"
+        echo "==> Polling for scan status..."
+        
+        # Polling trạng thái mỗi 15 giây
+        while true; do
+          STATUS_RESP=$(curl -s -X GET "{{apiUrl}}/status/$JOB_ID")
+          STATUS=$(echo $STATUS_RESP | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+          STAGE=$(echo $STATUS_RESP | grep -o '"stage":"[^"]*' | cut -d'"' -f4)
+          
+          echo "[*] Status: $STATUS | Stage: $STAGE"
+          
+          if [ "$STATUS" == "success" ]; then
+            echo "[+] Scan completed successfully!"
+            break
+          elif [ "$STATUS" == "failed" ]; then
+            echo "[-] Scan failed!"
+            exit 1
+          fi
+          
+          sleep 15
+        done
+        
+        echo "==> Downloading ZAP Report for Osmedeus UI..."
+        mkdir -p "{{Workspace}}/zap"
+        
+        # Tải báo cáo HTML qua endpoint /report/{job_id}
+        curl -s -X GET "{{apiUrl}}/report/$JOB_ID" -o "{{Workspace}}/zap/zap-report.html"
+        
+        echo "[+] Report saved to {{Workspace}}/zap/zap-report.html"
+
+report:
+  final:
+    - "{{Workspace}}/zap/zap-report.html"

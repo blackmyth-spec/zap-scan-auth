@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — ZAP DAST Service
+# ─────────────────────────────────────────────────────────────────────────────
+version: "3.9"
+
+services:
+
+  zap-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zap-dast-service:latest
+    container_name: zap-dast-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+    # ── Mount quan trọng ────────────────────────────────────────────────────
+    volumes:
+      # 1. Docker socket: cho phép service gọi `docker run` (ZAP container)
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # 2. ZAP scripts: pipeline script + Python utils + templates
+      #    Trỏ tới thư mục zap/ trong repo của bạn
+      - ../zap:/app/zap-scripts:ro
+
+      # 3. Workspace: mỗi scan job sẽ ghi vào thư mục con job_id/
+      - ./workspace:/app/workspace:rw
+
+    environment:
+      # ── Paths ─────────────────────────────────────────────────────────────
+      ZAP_SCRIPTS_DIR:   /app/zap-scripts
+      ZAP_WORKSPACE_ROOT: /app/workspace
+
+      # ── Defaults ──────────────────────────────────────────────────────────
+      ZAP_DEFAULT_DOCKER_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+      MAX_CONCURRENT_SCANS: "3"
+      LOG_LEVEL: INFO
+      LOG_TAIL_LINES: "80"
+
+      # ── Tắt proxy bên trong service ────────────────────────────────────────
+      HTTP_PROXY:  ""
+      HTTPS_PROXY: ""
+      http_proxy:  ""
+      https_proxy: ""
+      NO_PROXY:    "*"
+      no_proxy:    "*"
+
+    # ── Healthcheck ──────────────────────────────────────────────────────────
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+      start_period: 10s
+
+    # ── Resource limits (tuỳ chọn, điều chỉnh theo máy chủ) ─────────────────
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "2"
+    #       memory: 4G

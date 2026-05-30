@@ -1,0 +1,156 @@
+{
+  "info": {
+    "_postman_id": "7d59a7b2-f4ae-46cb-a1f2-d3ea7d8bb901",
+    "name": "Nextgen Ebanking - Mixed Public and Auth APIs (Runtime Auth Injection)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection gồm API public và API private. Không hard-code Authorization trong collection; Jenkins/ZAP sẽ inject token runtime cho private APIs."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://gke-gwint-uat.seauat.com.vn/canhan-2",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "get-password-type (public, no Authorization)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": \"eyJoZWFkZXIiOnsicmVxVHlwZSI6IlJFUVVFU1QiLCJwcmlvcml0eSI6IjEiLCJzeW5hc3luIjoidHJ1ZSIsImxvY2F0aW9uIjoiMTEyMjMzIn0sImJvZHkiOnsiZGF0YSI6eyJ1c2VyRWJhbmtJZCI6IjE2Njg4MTQ2MDAifSwidHJhbnNJRCI6IjEyMzEyMzEyMzEyMyJ9fQ==\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/get-password-type",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "get-password-type"
+          ]
+        },
+        "description": "API public/direct. Không Authorization. Không x-client-id."
+      },
+      "response": []
+    },
+    {
+      "name": "softotp-register (private, runtime Authorization)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": \"J078mZIyR5berHMy7Tz9E3SMJVPuVi0uHhIVuj4+JO4Gk2CalqYyQLrGaS7M0uPsR994MCyx8snhUW11UfDXb2ERg7F7FTHufi97iKpOzQ8MrS/JroMYToui9gLBWdLXk+XQgvQ59t2OqcLoKKOwVFRvFPYczGFwXSKBLwCSW1fc75uP5YSdDyeJe//vqadP7y7UUzOpRbuk5fnrptG3rRwaqpLIRdlKFVhU/3jhT4t5bEGqHof+x6h8TBmm6vIMJxmyxwo1bdm2CwXO8+4ZTwZ1dag8JZ3WOpRRzGVr4G9qtMeQ5WdbrSh5c3mhzzFofRIuAKbZYbh/FMxxR1qmI6lnE90YJ6NKRvfy2LckwiUWnyNAixPAfekHMqC2CkVWTKz2PB43MVa6VDuntKK0BNv8+ikesEneX3T+EJYgLmR4Bs5ol542\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/softotp/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "softotp",
+            "register"
+          ]
+        },
+        "description": "API private. Authorization sẽ được Jenkins/ZAP inject runtime."
+      },
+      "response": []
+    },
+    {
+      "name": "softotp-get-challenge-code (private, runtime Authorization)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": \"ZBjWI89llWD/hdKfcKAX0UYC0vpRoYKghfbnYoQmj443asUd+vDjHIh84WyiUaa6hAx9x0Gcd/hWjukbSr+yx8Ety8/yGV24clm93GBsripJQr0gij5qW07zGNxKRFbMI/Da6X5geC0oKUXGpOWpaWP64FTg4xhXV4jJOtMrWa0L090OMcqCs045ohxZOA/+H4UcLOC782j58hhSBO0cmu59d39bIhL5eizJJny2Fiw79GRoYeF/BiKr/7nr1HExmaA+nrPJ1HZ5bo2g0pLWnYxbFT91ayx5baVo6Ryu\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/softotp/get-challenge-code",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "softotp",
+            "get-challenge-code"
+          ]
+        },
+        "description": "API private. Authorization sẽ được Jenkins/ZAP inject runtime."
+      },
+      "response": []
+    },
+    {
+      "name": "softotp-activate-softtoken (private, runtime Authorization)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": \"PLZ0R6fH2YZqwdhWzUyS/hAtars/TQ0HhcV1oLoSZkH+oHWOsOhTteUT0GF52hG5TV7/2W2K8fkzPbCNaWOOVJ94JJDjYNrscyMsJ9/Yvqdh1Ci3+dJ4BZiXc5W90wM9sCi/SEtl4Hvjh/e5Y297w48hG8UEPdeaoMNp5JwvC19kokKNA9RWG6uiQgmrH55b2nkL98FEiEG3RgflFiNoKr75Xf1NpHKjyTXHttiu3aI65STykE53k/tNjNS2aFIzEaPuuKrtppWS1qHtN9IH3Z0DJ7buo3Rmyn4Vme0uzAW2HC55MniFtLG5PPUzx6J/oZSOdIPGe5Ptm2sFKvdIqZIw3u/yryC+wsxjaKSxZThJ1TEWBU66JA1RNG33DenEOpE1jkyuz3dIJokusY43OJYhWdDrdwFJ4q2FcziiQACbEaCYXEMUE7aNEqK0y0TIfWMEQTz64EMwu38Kwju2h7aVXhob+i4vX49NXpv1LQFs7ChCJk+W21XQgU4vm7o=\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/softotp/activate-softtoken",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "softotp",
+            "activate-softtoken"
+          ]
+        },
+        "description": "API private. Authorization sẽ được Jenkins/ZAP inject runtime."
+      },
+      "response": []
+    }
+  ]
+}
