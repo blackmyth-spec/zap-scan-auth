@@ -47,7 +47,15 @@ def call(Map cfg = [:]) {
     // Lệnh thực thi hoàn chỉnh (Gọi qua SSH sang server Osmedeus)
     // Để tránh lỗi Syntax Error do các ký tự đặc biệt như (, ), $, ', " khi gọi SSH trực tiếp, 
     // chúng ta ghi lệnh ra script và đẩy qua stdin.
-    def scriptContent = "#!/bin/bash\nosmedeus scan ${cmdArgs}\n"
+    def scriptContent = """#!/bin/bash
+# Nạp biến môi trường vì SSH non-interactive sẽ không tự chạy ~/.bashrc
+source ~/.bashrc 2>/dev/null
+source ~/.profile 2>/dev/null
+export PATH=\$PATH:/root/osmedeus-base:/root/.osmedeus:/usr/local/bin:/usr/bin
+
+# Chạy osmedeus (nếu vẫn lỗi not found, có thể thay bằng đường dẫn tuyệt đối, vd: /root/osmedeus-base/osmedeus)
+osmedeus scan ${cmdArgs}
+"""
     writeFile(file: 'zap-scan-trigger.sh', text: scriptContent)
     
     def cmd = "ssh -o StrictHostKeyChecking=no ${osmedeusUser}@${osmedeusIp} 'bash -s' < zap-scan-trigger.sh"
