@@ -47,6 +47,16 @@ def call(Map cfg = [:]) {
         def safeExclude = scanExcludeApis.replace("'", "'\\''")
         cmdArgs += " -p 'excludeApis=${safeExclude}'"
     }
+    
+    // ── Xử lý file Postman (Nếu có) ─────────────────────────────────────────
+    if (fileExists('zap-tmp/postman_collection.json')) {
+        echo "[ZAP] Phát hiện file Postman. Đang mã hóa để gửi sang FastAPI Service..."
+        // Dùng lệnh base64 của Linux (-w 0) để tạo thành 1 chuỗi dài không có dấu xuống dòng
+        def b64Raw = sh(script: "base64 -w 0 zap-tmp/postman_collection.json || base64 zap-tmp/postman_collection.json", returnStdout: true).trim()
+        // Đảm bảo an toàn 100% không có ký tự xuống dòng nào lọt vào
+        def b64Safe = b64Raw.replaceAll(/[\r\n]/, '')
+        cmdArgs += " -p 'postmanBase64=${b64Safe}'"
+    }
 
     // ── Cấu hình kết nối tới server Osmedeus ────────────────────────────────
     def osmedeusIp = "192.168.119.156"
