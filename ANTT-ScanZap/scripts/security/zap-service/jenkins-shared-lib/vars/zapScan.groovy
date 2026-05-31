@@ -24,12 +24,17 @@ def call(Map cfg = [:]) {
     // Lệnh này giả định rằng jenkins agent đã có sẵn CLI của Osmedeus,
     // hoặc bạn có thể gọi qua SSH tuỳ vào hạ tầng của bạn.
     
+    if (!baseUrl.trim()) {
+        error "[ZAP] ❌ Lỗi: BASE_URL đang bị rỗng! Osmedeus bắt buộc phải có target (tham số -t)."
+    }
+    
     def safeBaseUrl = baseUrl.replace("'", "'\\''")
-    def cmdArgs = "-m ${osmedeusModule} -t '${safeBaseUrl}'"
+    // Đảo thứ tự -t lên trước -m cho đúng chuẩn CLI thông thường của Osmedeus
+    def cmdArgs = "-t '${safeBaseUrl}' -m ${osmedeusModule}"
     
     if (loginCurlCommand.trim() != '') {
-        // 1. Escape nháy kép để file JSON của Osmedeus module không bị hỏng
-        def jsonSafeCurl = loginCurlCommand.replace('"', '\\"')
+        // 1. Escape dấu \ và nháy kép để file JSON của Osmedeus module không bị hỏng
+        def jsonSafeCurl = loginCurlCommand.replace('\\', '\\\\').replace('"', '\\"')
         // 2. Escape nháy đơn để an toàn khi chạy trên Bash
         def bashSafeCurl = jsonSafeCurl.replace("'", "'\\''")
         cmdArgs += " -p 'loginCurl=${bashSafeCurl}'"
