@@ -36,8 +36,12 @@ def call(Map cfg = [:]) {
         cmdArgs += " -p \"excludeApis=${scanExcludeApis}\""
     }
 
-    // Lệnh thực thi hoàn chỉnh
-    def cmd = "osmedeus scan ${cmdArgs}"
+    // ── Cấu hình kết nối tới server Osmedeus ────────────────────────────────
+    def osmedeusIp = "192.168.119.152"
+    def osmedeusUser = "root" // Sửa thành 'ubuntu' nếu cài đặt Osmedeus trên user đó
+
+    // Lệnh thực thi hoàn chỉnh (Gọi qua SSH sang server Osmedeus)
+    def cmd = "ssh -o StrictHostKeyChecking=no ${osmedeusUser}@${osmedeusIp} 'osmedeus scan ${cmdArgs}'"
     
     echo "[ZAP] Lệnh thực thi: ${cmd}"
 
@@ -49,7 +53,7 @@ def call(Map cfg = [:]) {
     }
 
     def cleanTarget = baseUrl.replaceAll('^https?://', '')
-    def osmedeusUiUrl = "http://192.168.119.152:8002"
+    def osmedeusUiUrl = "http://${osmedeusIp}:8002"
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "[ZAP] ✅ QUÁ TRÌNH SCAN HOÀN TẤT!"
@@ -62,8 +66,8 @@ def call(Map cfg = [:]) {
     def osmedeusWorkspace = "~/.osmedeus/workspaces/${cleanTarget}"
     def reportPath = "${osmedeusWorkspace}/zap/zap-report.html"
     
-    // Copy file về thư mục hiện tại của Jenkins
-    sh "cp ${reportPath} zap-report.html || echo '[ZAP] ⚠️ Không tìm thấy file báo cáo tại ${reportPath}'"
+    // Copy file từ server Osmedeus về thư mục hiện tại của Jenkins qua SCP
+    sh "scp -o StrictHostKeyChecking=no ${osmedeusUser}@${osmedeusIp}:${reportPath} zap-report.html || echo '[ZAP] ⚠️ Không tìm thấy file báo cáo tại ${reportPath}'"
 
     // 1. Publish dưới dạng Tab HTML (Nếu có cài plugin HTML Publisher)
     try {
