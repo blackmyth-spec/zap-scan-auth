@@ -41,7 +41,7 @@ def call(Map cfg = [:]) {
     }
 
     // ── Cấu hình kết nối tới server Osmedeus ────────────────────────────────
-    def osmedeusIp = "192.168.119.152"
+    def osmedeusIp = "192.168.119.156"
     def osmedeusUser = "root" // Sửa thành 'ubuntu' nếu cài đặt Osmedeus trên user đó
 
     // Lệnh thực thi hoàn chỉnh (Gọi qua SSH sang server Osmedeus)
