@@ -33,8 +33,11 @@ def call(Map cfg = [:]) {
     def cmdArgs = "-t '${safeBaseUrl}' -m ${osmedeusModule}"
     
     if (loginCurlCommand.trim() != '') {
-        // 1. Escape dấu \ và nháy kép để file JSON của Osmedeus module không bị hỏng
-        def jsonSafeCurl = loginCurlCommand.replace('\\', '\\\\').replace('"', '\\"')
+        // 1. Escape dấu \, nháy kép và dấu xuống dòng (\n) để file JSON của module không bị hỏng
+        def jsonSafeCurl = loginCurlCommand.replace('\\', '\\\\')
+                                           .replace('"', '\\"')
+                                           .replace('\n', '\\n')
+                                           .replace('\r', '')
         // 2. Escape nháy đơn để an toàn khi chạy trên Bash
         def bashSafeCurl = jsonSafeCurl.replace("'", "'\\''")
         cmdArgs += " -p 'loginCurl=${bashSafeCurl}'"
