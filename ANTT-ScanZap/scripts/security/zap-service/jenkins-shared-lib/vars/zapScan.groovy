@@ -24,16 +24,20 @@ def call(Map cfg = [:]) {
     // Lệnh này giả định rằng jenkins agent đã có sẵn CLI của Osmedeus,
     // hoặc bạn có thể gọi qua SSH tuỳ vào hạ tầng của bạn.
     
-    def cmdArgs = "-m ${osmedeusModule} -t \"${baseUrl}\""
+    def safeBaseUrl = baseUrl.replace("'", "'\\''")
+    def cmdArgs = "-m ${osmedeusModule} -t '${safeBaseUrl}'"
     
     if (loginCurlCommand.trim() != '') {
-        // Escape nháy kép an toàn để truyền param vào lệnh shell
-        def safeCurl = loginCurlCommand.replace('"', '\\"')
-        cmdArgs += " -p \"loginCurl=${safeCurl}\""
+        // 1. Escape nháy kép để file JSON của Osmedeus module không bị hỏng
+        def jsonSafeCurl = loginCurlCommand.replace('"', '\\"')
+        // 2. Escape nháy đơn để an toàn khi chạy trên Bash
+        def bashSafeCurl = jsonSafeCurl.replace("'", "'\\''")
+        cmdArgs += " -p 'loginCurl=${bashSafeCurl}'"
     }
     
     if (scanExcludeApis.trim() != '') {
-        cmdArgs += " -p \"excludeApis=${scanExcludeApis}\""
+        def safeExclude = scanExcludeApis.replace("'", "'\\''")
+        cmdArgs += " -p 'excludeApis=${safeExclude}'"
     }
 
     // ── Cấu hình kết nối tới server Osmedeus ────────────────────────────────
@@ -41,9 +45,14 @@ def call(Map cfg = [:]) {
     def osmedeusUser = "root" // Sửa thành 'ubuntu' nếu cài đặt Osmedeus trên user đó
 
     // Lệnh thực thi hoàn chỉnh (Gọi qua SSH sang server Osmedeus)
-    def cmd = "ssh -o StrictHostKeyChecking=no ${osmedeusUser}@${osmedeusIp} 'osmedeus scan ${cmdArgs}'"
+    // Để tránh lỗi Syntax Error do các ký tự đặc biệt như (, ), $, ', " khi gọi SSH trực tiếp, 
+    // chúng ta ghi lệnh ra script và đẩy qua stdin.
+    def scriptContent = "#!/bin/bash\nosmedeus scan ${cmdArgs}\n"
+    writeFile(file: 'zap-scan-trigger.sh', text: scriptContent)
     
-    echo "[ZAP] Lệnh thực thi: ${cmd}"
+    def cmd = "ssh -o StrictHostKeyChecking=no ${osmedeusUser}@${osmedeusIp} 'bash -s' < zap-scan-trigger.sh"
+    
+    echo "[ZAP] Lệnh thực thi: osmedeus scan ${cmdArgs}"
 
     // Thực thi lệnh và chờ kết quả
     def exitCode = sh(script: cmd, returnStatus: true)
